@@ -18,13 +18,19 @@ import (
 )
 
 const (
+	// PagesFolder is the path to the default folder from which to read the pages.
 	PagesFolder = "pages"
-	Binding     = ":12522"
-	Name        = "wikgo"
+	// Binding is the default address and port on which the wiki will be listening on.
+	Binding = ":12522"
+	// Name is the name of the application. Used in logging.
+	Name = "wikgo"
 )
 
 func init() {
-	logger.SetLevel(".", logger.Info)
+	err := logger.SetLevel(".", logger.Info)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func main() {
@@ -32,7 +38,7 @@ func main() {
 
 	router := httprouter.New()
 	router.GET("/", rootHandler)
-	router.GET("/pages/*path", pagesHandler)
+	router.GET("/"+PagesFolder+"/*path", pagesHandler)
 
 	l.Notice("Listening on ", Binding)
 	err := http.ListenAndServe(Binding, router)
@@ -108,7 +114,7 @@ func pagesHandlerFile(wr http.ResponseWriter, re *http.Request, ps httprouter.Pa
 	l.Trace("Filepath Extention: ", filepath.Ext(path))
 	switch filepath.Ext(path) {
 	case ".asciidoc":
-		err = AsciiDoctor(file, wr)
+		err = asciiDoctor(file, wr)
 		if err != nil {
 			printerr(l, wr, errgo.Notef(err, "can not format file with asciidoctor"))
 			return
@@ -130,7 +136,7 @@ func printerr(l logger.Logger, wr http.ResponseWriter, err error) {
 	return
 }
 
-func AsciiDoctor(reader io.Reader, writer io.Writer) error {
+func asciiDoctor(reader io.Reader, writer io.Writer) error {
 	stderr := new(bytes.Buffer)
 
 	command := exec.Command("asciidoctor", "-")
