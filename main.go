@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 
 	"github.com/AlexanderThaller/logger"
@@ -75,8 +76,8 @@ func pagesHandler(wr http.ResponseWriter, re *http.Request, ps httprouter.Params
 func pagesHandlerDirectory(wr http.ResponseWriter, re *http.Request, ps httprouter.Params) {
 	l := logger.New(Name, "pagesHandlerDirectory")
 
-	path := "./" + re.URL.Path
-	files, err := ioutil.ReadDir(path)
+	urlpath := "./" + re.URL.Path
+	files, err := ioutil.ReadDir(urlpath)
 	if err != nil {
 		printerr(l, wr, errgo.Notef(err, "can not read from directory"))
 		return
@@ -90,7 +91,7 @@ func pagesHandlerDirectory(wr http.ResponseWriter, re *http.Request, ps httprout
   </head>
   <body>`)
 	for _, file := range files {
-		filepath := re.URL.Path + "/" + file.Name()
+		filepath := path.Clean(re.URL.Path + "/" + file.Name())
 		fmt.Fprintf(wr, "<a href="+filepath+">"+file.Name()+"</a>")
 		fmt.Fprintf(wr, "<br>\n")
 	}
