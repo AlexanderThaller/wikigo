@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/AlexanderThaller/logger"
 	"github.com/juju/errgo"
@@ -23,7 +24,7 @@ const (
 )
 
 func init() {
-	logger.SetLevel(".", logger.Trace)
+	logger.SetLevel(".", logger.Info)
 }
 
 func main() {
@@ -45,13 +46,9 @@ func rootHandler(wr http.ResponseWriter, re *http.Request, ps httprouter.Params)
 	http.Redirect(wr, re, "/pages/", 301)
 }
 
-func pagesHandlerIndex(wr http.ResponseWriter, re *http.Request, ps httprouter.Params) {
-	path := "index.adoc"
-	fmt.Fprintf(wr, "Path: "+path)
-}
-
 func pagesHandler(wr http.ResponseWriter, re *http.Request, ps httprouter.Params) {
 	l := logger.New(Name, "pagesHandler")
+	timestart := time.Now()
 
 	path := "./" + re.URL.Path
 	stat, err := os.Stat(path)
@@ -62,15 +59,13 @@ func pagesHandler(wr http.ResponseWriter, re *http.Request, ps httprouter.Params
 
 	if stat.Mode().IsDir() {
 		pagesHandlerDirectory(wr, re, ps)
-		return
 	}
 
 	if stat.Mode().IsRegular() {
 		pagesHandlerFile(wr, re, ps)
-		return
 	}
 
-	printerr(l, wr, errgo.New("this is not a directory and not a regular file!"))
+	l.Info("Sent ", re.URL.Path, " (", time.Since(timestart), ")")
 }
 
 func pagesHandlerDirectory(wr http.ResponseWriter, re *http.Request, ps httprouter.Params) {
