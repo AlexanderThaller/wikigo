@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/AlexanderThaller/logger"
 	"github.com/juju/errgo"
@@ -18,10 +21,15 @@ const (
 	Name        = "wikgo"
 )
 
+func init() {
+	logger.SetLevel(".", logger.Trace)
+}
+
 func main() {
 	l := logger.New(Name, "main")
 
 	router := httprouter.New()
+	router.GET("/", rootHandler)
 	router.GET("/pages/*path", pagesHandler)
 
 	l.Notice("Listening on ", Binding)
@@ -30,6 +38,10 @@ func main() {
 		l.Alert(errgo.Notef(err, "can not listen on binding"))
 		os.Exit(1)
 	}
+}
+
+func rootHandler(wr http.ResponseWriter, re *http.Request, ps httprouter.Params) {
+	http.Redirect(wr, re, "/pages/", 301)
 }
 
 func pagesHandlerIndex(wr http.ResponseWriter, re *http.Request, ps httprouter.Params) {
@@ -97,10 +109,21 @@ func pagesHandlerFile(wr http.ResponseWriter, re *http.Request, ps httprouter.Pa
 	}
 	defer file.Close()
 
-	_, err = io.Copy(wr, file)
-	if err != nil {
-		printerr(l, wr, errgo.Notef(err, "can not copy file to response writer"))
-		return
+	l.Trace("Filepath Extention: ", filepath.Ext(path))
+	switch filepath.Ext(path) {
+	case ".asciidoc":
+		err = AsciiDoctor(file, wr)
+		if err != nil {
+			printerr(l, wr, errgo.Notef(err, "can not format file with asciidoctor"))
+			return
+		}
+
+	default:
+		_, err = io.Copy(wr, file)
+		if err != nil {
+			printerr(l, wr, errgo.Notef(err, "can not copy file to response writer"))
+			return
+		}
 	}
 }
 
@@ -109,4 +132,21 @@ func printerr(l logger.Logger, wr http.ResponseWriter, err error) {
 	fmt.Fprintf(wr, errgo.Details(err))
 
 	return
+}
+
+func AsciiDoctor(reader io.Reader, writer io.Writer) error {
+	stderr := new(bytes.Buffer)
+
+	command := exec.Command("asciidoctor", "-")
+	command.Stdin = reader
+	command.Stdout = writer
+	command.Stderr = stderr
+
+	err := command.Run()
+	if err != nil {
+		return errgo.Notef(errgo.Notef(err, "can not run asciidoctor"),
+			stderr.String())
+	}
+
+	return nil
 }
