@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,19 +16,31 @@ import (
 	"github.com/AlexanderThaller/logger"
 	"github.com/juju/errgo"
 	"github.com/julienschmidt/httprouter"
+	"github.com/spf13/viper"
 )
 
 const (
-	// PagesFolder is the path to the default folder from which to read the pages.
-	PagesFolder = "pages"
-	// Binding is the default address and port on which the wiki will be listening on.
-	Binding = ":12522"
 	// Name is the name of the application. Used in logging.
 	Name = "wikgo"
 )
 
+var (
+	BuildHash string
+	BuildTime string
+)
+
 func init() {
-	err := logger.SetLevel(".", logger.Info)
+	err := configure()
+	if err != nil {
+		panic(err)
+	}
+
+	loglevel, err := logger.ParsePriority(viper.GetString("LogLevel"))
+	if err != nil {
+		panic(err)
+	}
+
+	err = logger.SetLevel(".", loglevel)
 	if err != nil {
 		panic(err)
 	}
@@ -35,13 +48,17 @@ func init() {
 
 func main() {
 	l := logger.New(Name, "main")
+	l.Info("Version: ", fmt.Sprintf("%v-b%v", BuildHash, BuildTime))
+
+	pagesFolder := viper.GetString("PagesFolder")
+	binding := viper.GetString("Binding")
 
 	router := httprouter.New()
 	router.GET("/", rootHandler)
-	router.GET("/"+PagesFolder+"/*path", pagesHandler)
+	router.GET("/"+pagesFolder+"/*path", pagesHandler)
 
-	l.Notice("Listening on ", Binding)
-	err := http.ListenAndServe(Binding, router)
+	l.Notice("Listening on ", binding)
+	err := http.ListenAndServe(binding, router)
 	if err != nil {
 		l.Alert(errgo.Notef(err, "can not listen on binding"))
 		os.Exit(1)
@@ -49,14 +66,18 @@ func main() {
 }
 
 func rootHandler(wr http.ResponseWriter, re *http.Request, ps httprouter.Params) {
-	http.Redirect(wr, re, "/pages/", 301)
+	pagesFolder := viper.GetString("PagesFolder")
+	http.Redirect(wr, re, "/"+pagesFolder+"/", 301)
 }
 
 func pagesHandler(wr http.ResponseWriter, re *http.Request, ps httprouter.Params) {
 	l := logger.New(Name, "pagesHandler")
 	timestart := time.Now()
+	ip, _, _ := net.SplitHostPort(re.RemoteAddr)
 
-	path := "./" + re.URL.Path
+	path := path.Clean("./" + re.URL.Path)
+	l.Notice("Sending ", path, " to ", ip)
+
 	stat, err := os.Stat(path)
 	if err != nil {
 		printerr(l, wr, errgo.Notef(err, "can not stat path"))
@@ -64,14 +85,20 @@ func pagesHandler(wr http.ResponseWriter, re *http.Request, ps httprouter.Params
 	}
 
 	if stat.Mode().IsDir() {
+		l.Trace("Filetype: Directory")
 		pagesHandlerDirectory(wr, re, ps)
 	}
 
 	if stat.Mode().IsRegular() {
+		l.Trace("Filetype: File")
 		pagesHandlerFile(wr, re, ps)
 	}
 
-	l.Info("Sent ", re.URL.Path, " (", time.Since(timestart), ")")
+	if !stat.Mode().IsDir() && !stat.Mode().IsRegular() {
+		l.Error("Filetype is not a directory and not a regular file. Something is strange.")
+	}
+
+	l.Debug("Sent ", path, " (", time.Since(timestart), ")")
 }
 
 func pagesHandlerDirectory(wr http.ResponseWriter, re *http.Request, ps httprouter.Params) {

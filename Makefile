@@ -15,7 +15,7 @@ test:
 	go test
 
 build:
-	go build -ldflags "-X main.buildTime `date +%s` -X main.buildVersion `git describe --always`" -o "$(NAME)"
+	go build -ldflags "-X main.BuildTime `date +%s` -X main.BuildHash `git describe --always`" -o "$(NAME)"
 
 install:
 	cp "$(NAME)" /usr/local/bin

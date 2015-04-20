@@ -1,0 +1,4 @@
+PagesFolder = "pages"
+Binding = ":12523"
+LogLevel = "Notice"
+RepositoryType = "git"
