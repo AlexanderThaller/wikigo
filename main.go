@@ -138,8 +138,19 @@ func pagesHandlerFile(wr http.ResponseWriter, re *http.Request, ps httprouter.Pa
 	}
 	defer file.Close()
 
-	l.Trace("Filepath Extention: ", filepath.Ext(path))
-	switch filepath.Ext(path) {
+	queries := re.URL.Query()
+
+	ext := filepath.Ext(path)
+
+	_, sendraw := queries["raw"]
+
+	if sendraw {
+		ext = ""
+	}
+
+	l.Trace("Filepath Extention: ", ext)
+
+	switch ext {
 	case ".asciidoc":
 		err = asciiDoctor(file, wr)
 		if err != nil {
