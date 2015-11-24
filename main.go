@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -119,9 +120,13 @@ func pagesHandlerDirectory(wr http.ResponseWriter, re *http.Request, ps httprout
   </head>
   <body>`)
 	for _, file := range files {
-		filepath := path.Clean(re.URL.Path + "/" + file.Name())
-		fmt.Fprintf(wr, "<a href="+filepath+">"+file.Name()+"</a>")
-		fmt.Fprintf(wr, "<br>\n")
+		url, err := url.Parse(path.Clean(re.URL.Path + "/" + file.Name()))
+		if err != nil {
+			l.Error(errgo.Notef(err, "can not escape url"))
+		}
+
+		fmt.Fprintf(wr, "<a href=%s>%s</a>", url.String(), file.Name())
+		fmt.Fprint(wr, "<br>\n")
 	}
 	fmt.Fprintf(wr, `</body>
   </html>`)
